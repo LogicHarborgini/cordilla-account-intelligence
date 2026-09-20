@@ -169,6 +169,16 @@ Working the top 10% yields a 26.7% hit rate against a 6.5% baseline — about **
 
 And a seed for the agent design: I can't touch the model, but the agent can carry `has_intent` as a visible flag beside the score — "this account scores 0.11, but we hold no vendor data on it, and accounts like that convert at 3.94%." That uses the model's ranking without laundering its blind spot into something reps can't see.
 
+## Entry 8 — 2026-09-20 — Scoring the batch and setting tier cutoffs
+
+Scored all 300 accounts via `analysis/score_and_evaluate.py` (300 in, 300 out, asserted in code). Tier counts: A 28, B 46, C 78, D 148. Scores span 0.038–0.209.
+
+**The one judgement call worth recording.** Tiers use **absolute probability thresholds** taken once from the training score distribution (p90 = 0.1088, p75 = 0.0792, p50 = 0.0525), not per-batch percentiles. Percentile tiering would manufacture a full Tier A in every batch regardless of how weak the accounts were, hiding exactly the degradation I want to catch; with fixed cutoffs a poorer batch yields a smaller Tier A and the counts become a free drift signal. This batch produced 9.3% Tier A against the 10% training reference — inside noise, but the mechanism is the point. Validated the cutoffs against actual outcomes before adopting them: 26.67% / 9.44% / 4.00% / 2.83%, cleanly monotonic, where the raw deciles were not. Worth noting that tiers C and D both convert *below* the 6.5% baseline — the useful message to a sales lead is less "here are your best accounts" than "three quarters of this list is worse than random and here is which three quarters."
+
+**A hypothesis I tested and dropped.** I expected Tier A to be contaminated by the over-scored no-vendor-data accounts from Entry 7. It isn't — Tier A has the highest coverage in the batch at 78.6% against a 61.3% average. Still, 6 of the 28 Tier A accounts have no vendor record (rank 7, `ACC-00646`: 637 employees, 6 sales contacts, scored 0.148, no vendor data), so the per-account flag stays in the agent design rather than being dropped as unnecessary.
+
+**Caveat carried forward:** tier lift is measured in-sample on training rows. "Tier A converts at 26.67%" is an upper-bound expectation conditional on the new batch behaving like the old population, which cannot be verified from what I was given. That gap is the reason the monitoring work matters.
+
 ---
 
-*Continues below as work proceeds: the scoring run, impact framing, agent build, monitoring design.*
+*Continues below as work proceeds: impact framing, agent build, monitoring design.*
