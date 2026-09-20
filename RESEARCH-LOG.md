@@ -231,6 +231,32 @@ That last case is the one I would demo. At 51.33% coverage the batch still score
 
 **Assumption stated rather than hidden:** rep capacity (default 25) is a CLI parameter, not a finding. Headcount and call volume are absent from the provided data.
 
+## Entry 11 — 2026-09-20 — Monitoring, and the check that proved it could not be the alarm
+
+**Tool:** Claude Code (Opus 5).
+
+**The thing I had already built, and why it was not enough.** The agent's input gate inspects one batch and halts on structural damage — an unrecognised industry, duplicate IDs, a coverage collapse at −14.8 sigma. It works and it is tested. It is also structurally incapable of catching the failure this exercise is actually about. Coverage on a 300-account batch carries a ~2.8pp sampling error, so a 3-sigma gate needs roughly 8.4pp of movement before it says anything. A vendor quietly shedding 0.8pp of coverage a run reaches that in about ten weeks, and the gate is silent for every run in between while the model's most important feature degrades underneath it. A threshold on a single observation catches a cliff; the Cordilla story is a slope.
+
+**So the monitoring is explicitly two layers, and the split is the design.** `monitoring/drift_monitor.py` compares runs to each other; `monitoring/outcome_monitor.py` tests the claim against ground truth.
+
+**Why CUSUM rather than a trend line.** CUSUM accumulates deviation from a known target instead of re-testing each observation alone, which is exactly the sensitivity profile needed — responsive to a small persistent shift, unmoved by one-off noise. A regression slope would also find the trend, but needs a window length chosen up front and re-answers from scratch each time; CUSUM carries state, so drift starting today is detected on its own schedule rather than whenever the window happens to align. Textbook parameters, k = 0.5 and h = 5.0, which catches a sustained 1-sigma shift within a few observations at roughly one false alarm per 465 in-control runs.
+
+On the bundled simulation — 18 runs, coverage falling 0.8pp each, about 0.28 sigma per step — **CUSUM flags coverage at run 15 while the single-run check never fires once across all 18**. On two other signals CUSUM leads the point check by one and three runs. The simulation is synthetic and labelled as such in the code; it exists because a detector nobody has watched fire is indistinguishable from one that never fires, and one real run cannot exercise a cross-run check.
+
+**A flaw I caught in my own monitor and fixed rather than shipped.** The first version scaled every signal by its theoretical sampling error. For mean predicted probability on n=300 that is 0.0018, so an entirely unremarkable 0.7% population shift read as 4.1 sigma. That check would page somebody most weeks, get muted within a month, and a muted alarm is precisely how the original Cordilla effort went unwatched — I would have built the failure mode into the thing meant to prevent it. Sampling error is a *floor* on how much a signal moves, not an estimate: real batches differ because territories rotate and campaigns land, not only because of random draw. The monitor now takes the larger of the theoretical floor and the spread actually observed during a burn-in period. Stated limitation, in the code: if drift is already underway during the burn-in, the estimated noise is inflated and the monitor goes quiet — which is the argument for treating any re-baseline as a deliberate, recorded act.
+
+**I also caught the simulator flattering the detector.** My first synthetic history injected less run-to-run noise than sampling error, which is not a thing that happens in production and which quietly made the detector look better than it is. It also meant the burn-in estimator never engaged, so the fix above was never exercised by the demo. Corrected to 3.5pp against the 2.8pp floor.
+
+**Then the lagging check, which produced the most useful finding in this phase — against itself.** `outcome_monitor.py` tests whether Tier A actually converted at the expected 26.67%. Running the power arithmetic rather than assuming it: detecting a fall to 20% needs ~255 Tier A accounts. At ~28 per batch plus the 90-day conversion window, that is **160 days at weekly cadence — about five months. Thirteen months monthly.**
+
+Five months is a couple of quarters. That is the exact interval in the planted backstory where scores stopped matching what reps saw and nobody could say when it started. **An organisation watching only conversion outcomes would reproduce that failure precisely, while doing nothing wrong** — the instrument is simply too slow for the job it looks like it does. That reframes the whole design: the leading indicators are not a nice supplement to outcome tracking, they are the only thing that can move at the speed the failure moves. The outcome check is confirmation, not alarm. I would not have been able to argue that convincingly without computing it.
+
+**A second-order point from the same table.** A single batch of 28 Tier A accounts converting at 25% returns HEALTHY with an interval of [10.7%, 44.9%] — equally consistent with a top tier that has fallen below the level where it earns a rep's time. So the check prints an explicit `underpowered` flag rather than leaving someone to infer it, because "HEALTHY on one batch" read as reassurance is the same error as the original failure, just faster.
+
+**An error I made writing this up.** My first draft of the output narration said a particular row returned INCONCLUSIVE. The code returned DEGRADED. I had written the commentary from what I expected the logic to do instead of reading what it printed — the precise habit this project keeps arguing against. Corrected, and worth recording as the fourth time in this build that checking the output against the claim caught something.
+
+**What happens when something trips** is specified per severity in the code, with an owner and an action, because a check without a defined response is a log line. The escalation terminates somewhere concrete: if the outcome check reads BROKEN, stop presenting model-ranked tiers and fall back to the two-fact ordering — vendor data held, trial started — which reached 0.612 AUC in-sample at zero cost. That fallback was priced during the impact work specifically so the decision would not have to be made under pressure.
+
 ---
 
-*Continues below as work proceeds: monitoring design, then the written proposal.*
+*Continues below: the written proposal, then a final consolidating entry.*

@@ -75,6 +75,38 @@ directions — that they accept good output and reject each specific failure mod
 
     python -m agent.guardrails
 
+**4. Run the monitoring checks.**
+
+    python -m monitoring.drift_monitor --simulate   # leading indicators, across runs
+    python -m monitoring.outcome_monitor            # the lagging business-outcome check
+
+    python -m monitoring.drift_monitor --history output/   # against real run reports
+
+### How the monitoring is split, and why
+
+There are two layers, watching for different things on different timescales.
+
+**The input gate** (inside the agent) inspects one batch and decides go/no-go. It catches a
+cliff: an unrecognised industry, duplicate IDs, a coverage collapse. It is also structurally
+blind to slow decline — vendor coverage on 300 accounts has a ~2.8pp standard error, so a
+3-sigma gate needs ~8.4pp of movement, and a vendor shedding 0.8pp per run stays invisible to
+it for ten weeks.
+
+**`drift_monitor.py`** compares runs to each other using CUSUM, which accumulates small
+deviations instead of testing each in isolation. On the bundled simulation, vendor-coverage
+drift is caught at run 15 while the single-run check never fires once across 18 runs. Noise is
+estimated from a burn-in period rather than assumed, because sampling error is a floor on
+real batch-to-batch variation, not an estimate of it — assuming otherwise produces an alarm
+that fires weekly and therefore gets muted.
+
+**`outcome_monitor.py`** tests the actual claim: did Tier A convert at ~26.7%? It also shows
+why it cannot be the primary alarm. Detecting a fall from 26.7% to 20% needs ~255 Tier A
+accounts; at ~28 per batch plus the 90-day conversion window, that is about **five months even
+at weekly cadence**. That is the two-quarter gap in the brief's own backstory — an
+organisation watching only conversions would reproduce that failure while doing nothing wrong.
+The leading indicators exist because this one is too slow, and this one exists because the
+leading indicators cannot prove the model became wrong.
+
 ### How the agent is put together
 
 A LangGraph `StateGraph` with linear/DAG edges and exactly one branch:
