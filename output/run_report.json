@@ -1,23 +1,23 @@
 {
   "trace": {
-    "run_id": "run-20260920T042203Z",
+    "run_id": "run-20260920T053104Z",
     "project": "cordilla-call-list",
     "span_count": 57,
     "by_run_type": {
       "chain": {
         "count": 7,
         "errors": 0,
-        "total_ms": 729.98
+        "total_ms": 1259.53
       },
       "llm": {
         "count": 25,
         "errors": 0,
-        "total_ms": 0.01
+        "total_ms": 0.02
       },
       "evaluator": {
         "count": 25,
         "errors": 0,
-        "total_ms": 1.53
+        "total_ms": 1.96
       }
     },
     "note": "Token counts are mocked. A real LangSmith trace carries usage from the API response."
@@ -84,9 +84,9 @@
     "guardrail_failure_codes": {}
   },
   "artifacts": {
-    "call_sheet": "output/call_sheet.md",
-    "crm_tasks": "output/crm_tasks.json",
-    "run_report": "output/run_report.json",
-    "scored_accounts": "output/agent_scored_accounts.csv"
+    "call_sheet": "output\\call_sheet.md",
+    "crm_tasks": "output\\crm_tasks.json",
+    "run_report": "output\\run_report.json",
+    "scored_accounts": "output\\agent_scored_accounts.csv"
   }
 }

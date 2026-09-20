@@ -50,23 +50,23 @@ This suspect is worth a look because 4 sales touches already logged.
 
 **Try opening with:** Pick up from the last conversation and ask what has changed since.
 
-## 7. ACC-00122 — Tier A
-
-*Prospect · Manufacturing · ~698 staff · data 38 days old*
-
-This prospect is worth a look because 5 website visits in the last 90 days, and 6 sales touches already logged.
-
-**Try opening with:** Mention they have been reading up on us and ask what prompted the interest.
-
-> ⚠ We hold no third-party intent data on this account, so its position on the list is less reliable than others.
-
-## 8. ACC-00646 — Tier A
+## 7. ACC-00646 — Tier A
 
 *Prospect · Manufacturing · ~637 staff · data 272 days old*
 
 This prospect is worth a look because 6 sales touches already logged, and 2 marketing-qualified leads in 90 days.
 
 **Try opening with:** Pick up from the last conversation and ask what has changed since.
+
+> ⚠ We hold no third-party intent data on this account, so its position on the list is less reliable than others.
+
+## 8. ACC-00122 — Tier A
+
+*Prospect · Manufacturing · ~698 staff · data 38 days old*
+
+This prospect is worth a look because 5 website visits in the last 90 days, and 6 sales touches already logged.
+
+**Try opening with:** Mention they have been reading up on us and ask what prompted the interest.
 
 > ⚠ We hold no third-party intent data on this account, so its position on the list is less reliable than others.
 

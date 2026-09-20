@@ -20,48 +20,42 @@ signal at no extra cost.
 Nothing here retrains or modifies the model. It is loaded and called only.
 """
 
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-import pickle
+# Import the canonical constants rather than restating them.
+#
+# WHY THE sys.path LINE: this file is runnable directly as
+# `python analysis/score_and_evaluate.py`, which puts analysis/ on the path
+# rather than the repo root, so `import agent` would fail without it.
+#
+# WHY IMPORT AT ALL, given this script came first: an earlier version defined
+# the tier cutoffs here AND in the agent, the two copies drifted apart, and the
+# discrepancy only surfaced because the two paths disagreed by three accounts.
+# Tier boundaries are a policy decision that reaches a sales rep. They get one
+# definition, in agent/scoring.py, and everything else reads it.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from agent import scoring  # noqa: E402
 
 pd.set_option("display.width", 200)
 pd.set_option("display.max_columns", 50)
 
-MODEL_PKL = "model/model.pkl"
 TRAIN_CSV = "data/training_data.csv"
 SCORE_CSV = "data/accounts_to_score.csv"
 OUT_CSV = "output/scored_accounts.csv"
 
-# Trained feature order. account_id and snapshot_date are identifiers and are
-# deliberately excluded — the pipeline drops unknown columns anyway, but passing
-# them would misrepresent what the model consumes.
-FEATURES = [
-    "account_type", "employee_count", "industry", "intent_score",
-    "mql_count_90d", "trial_started", "trial_active_users",
-    "web_touchpoints_90d", "sales_contacts_90d",
-]
+FEATURES = scoring.FEATURES
+TIER_THRESHOLDS = scoring.TIER_THRESHOLDS
+TIER_LABELS = scoring.TIER_LABELS
 
-# Tier cutoffs. FROZEN CONSTANTS, not recomputed per run.
-#
-# Derived once from the p90/p75/p50 of the training score distribution and then
-# written down here, rounded to 4dp. Recomputing them at runtime would defeat
-# the point: thresholds that move with their input are not thresholds a batch
-# can fall short of, and the tier counts would stop being a drift signal. In a
-# real deployment these would live in config and change only by deliberate
-# review. print_threshold_provenance() re-derives them so the rounding stays
-# auditable.
-TIER_THRESHOLDS = {"A": 0.1088, "B": 0.0792, "C": 0.0525}
+# Only the provenance mapping is local, because it describes how the frozen
+# constants were originally derived rather than what they are.
 TIER_PERCENTILES = {"A": 90, "B": 75, "C": 50}
-TIER_LABELS = {
-    "A": "A - call first",
-    "B": "B - work next",
-    "C": "C - low priority",
-    "D": "D - do not prioritise",
-}
 
 
 def rule(title):
@@ -71,18 +65,11 @@ def rule(title):
 
 
 def load_model():
-    with open(MODEL_PKL, "rb") as f:
-        model = pickle.load(f)
-    classes = list(model.steps[-1][1].classes_)
-    # Never assume column 1 is the positive class; a silent inversion here would
-    # reverse every tier while still producing plausible-looking output.
-    if 1 not in classes:
-        raise ValueError(f"no positive class 1 in classes_={classes}")
-    return model, classes.index(1)
+    return scoring.load_model()
 
 
 def score(model, pos_idx, df):
-    return model.predict_proba(df[FEATURES])[:, pos_idx]
+    return scoring.score_frame(model, pos_idx, df)
 
 
 def print_threshold_provenance(train_scores):
@@ -98,15 +85,9 @@ def print_threshold_provenance(train_scores):
 
 
 def assign_tier(scores, thresholds=None):
-    thresholds = thresholds or TIER_THRESHOLDS
-    return pd.Series(
-        np.select(
-            [scores >= thresholds["A"], scores >= thresholds["B"], scores >= thresholds["C"]],
-            ["A", "B", "C"],
-            default="D",
-        ),
-        index=getattr(scores, "index", None),
-    )
+    """Delegates to the canonical implementation so the two paths cannot diverge."""
+    return pd.Series(scoring.assign_tier(scores),
+                     index=getattr(scores, "index", None))
 
 
 def section_evaluate(train, y):
