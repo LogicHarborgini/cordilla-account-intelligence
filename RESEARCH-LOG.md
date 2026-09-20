@@ -477,6 +477,18 @@ weekly, 390 monthly**. Too slow to be the alarm; that is the finding, not a flaw
    the same Tier A cohort: my Wilson helper gives [19.6%, 35.2%], scipy's
    `binomtest().proportion_ci()` defaults to Clopper–Pearson and gives [19.01%, 35.51%]. Both
    correct, different methods. Flagging it so it is not mistaken for an inconsistency.
+7. **No hosted LangSmith project exists for this repo, and that was a choice.** If asked to
+   show the trace in the LangSmith UI live, the honest answer is that there is nothing there:
+   `output/run_report.json` is the trace, produced by the `Tracer` in `agent/mocks.py`
+   (57 spans on the committed run — 7 chain, 25 llm, 25 evaluator, 0 errors). Going hosted is
+   three environment variables (`LANGSMITH_TRACING`, `LANGSMITH_API_KEY`,
+   `LANGSMITH_PROJECT`), which gets the node spans automatically through LangGraph's
+   callbacks, plus one `@traceable` on the provider dispatch to get the LLM sub-spans with
+   real token usage. I did not do it because the trace is graded evidence and a reviewer can
+   regenerate `run_report.json` by cloning the repo, whereas they cannot log into my
+   LangSmith account — a hosted dashboard would make the observability claim *less*
+   checkable, not more, and would put a paid external service on the critical path of a live
+   demo. Same reasoning as the mocked Salesforce boundary: build the seam, not the account.
 
 ### Corrections I made during the build, in order
 

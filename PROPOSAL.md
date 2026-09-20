@@ -72,11 +72,13 @@ validate_input ─┬─(proceed)→ score → tier → flag_vendor_gap → sele
                 └─(halt)───→ halt_run
 ```
 
-**Why a framework, honestly.** Not because the control flow demands it: one branch, no
-cycles, and plain functions would run this correctly. What holds is that **node boundaries
+**Why a framework, honestly.** Not because control flow demands it: one branch, no cycles;
+plain functions would run this correctly. What holds is that **node boundaries
 become observability boundaries**: every node is a span, the run report is assembled from
-them, and the monitoring reads that report. Setting `LANGSMITH_TRACING` ships those same
-spans to a hosted backend with no code change. I did *not* adopt its
+them, and the monitoring reads that report. `LANGSMITH_TRACING` ships the node spans to a
+hosted backend unchanged; the LLM and guardrail sub-spans are my own `Tracer`, one
+`@traceable` each. Local by default is deliberate: `run_report.json` reproduces from a clean
+clone. I did *not* adopt its
 cyclic or LLM-routing machinery: every decision reaching a rep stays deterministic, because in
 a scenario whose premise is lost credibility, *"why is this account on my list?"* must have a
 stable answer.

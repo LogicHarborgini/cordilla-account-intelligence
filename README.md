@@ -70,6 +70,13 @@ Writes to `output/`:
 | `run_report.json` | Input-gate findings, tier counts, score distribution, trace spans, guardrail results. |
 | `agent_scored_accounts.csv` | All 300 accounts with score, tier and vendor-data flag. |
 
+`run_report.json` **is** the trace — one span per graph node, plus a child span per LLM call
+and per guardrail check. Tracing is local on purpose: the run reproduces from a clean clone
+with no account and no key. Setting `LANGSMITH_TRACING`, `LANGSMITH_API_KEY` and
+`LANGSMITH_PROJECT` streams the node spans to a hosted backend with no code change; the LLM
+and guardrail sub-spans come from the `Tracer` in `agent/mocks.py` and would each need a
+`@traceable` decorator to appear there too.
+
 **2b. Swap the LLM backend (optional).** The rationale step is pluggable. `mock` is the
 default and needs no key, so everything above runs unchanged without one.
 
