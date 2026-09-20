@@ -120,7 +120,17 @@ def validate_rationale(payload: Any, facts: dict[str, Any]) -> ValidationResult:
 
     # --- length ------------------------------------------------------------
     # A rep skims this. Three sentences means it will not get read.
-    sentences = [s for s in re.split(r"[.!?]+", rationale) if s.strip()]
+    #
+    # The lookahead is load-bearing. Splitting on a bare [.!?] counts the
+    # decimal point in "vendor intent value of 61.7" as a sentence boundary,
+    # which rejected 12 of 25 perfectly valid rationales the first time this
+    # ran against a live model. Requiring whitespace-or-end after the
+    # punctuation fixes it, because "61.7" has a digit there instead.
+    #
+    # Worth noting how this was missed: the mock never emits a decimal, so the
+    # self-test below passed 9/9 against a check that was broken for real
+    # input. Test cases drawn only from the stand-in inherit its blind spots.
+    sentences = [s for s in re.split(r"[.!?]+(?=\s|$)", rationale) if s.strip()]
     if len(sentences) > MAX_RATIONALE_SENTENCES:
         failures.append(_fail(
             "too_long", f"{len(sentences)} sentences, max {MAX_RATIONALE_SENTENCES}"))
@@ -246,6 +256,25 @@ _CASES: list[tuple[str, dict, dict, list[str]]] = [
         _COVERED,
         {"rationale": "", "opening_line": "Call them.", "data_caveat": None},
         ["empty_field"],
+    ),
+    # --- regression cases, added after a live model exposed a real bug -----
+    (
+        "two sentences containing a decimal (regression)",
+        _COVERED,
+        {"rationale": "They have an active trial with 3 users. Their vendor intent "
+                      "value of 33.2 suggests they are evaluating options.",
+         "opening_line": "Ask how the trial is going.",
+         "data_caveat": None},
+        [],   # must ACCEPT: the decimal point is not a sentence boundary
+    ),
+    (
+        "genuinely three sentences, decimal present (regression)",
+        _COVERED,
+        {"rationale": "They started a trial. Their intent value is 33.2. Three "
+                      "people are using it.",
+         "opening_line": "Ask how the trial is going.",
+         "data_caveat": None},
+        ["too_long"],   # must still REJECT: the fix must not disable the check
     ),
 ]
 

@@ -18,13 +18,7 @@ import pandas as pd
 
 from agent import scoring
 from agent.guardrails import validate_rationale
-from agent.mocks import (
-    LLMCallFailed,
-    MODEL_ID,
-    Tracer,
-    call_claude_for_rationale,
-    render_fallback_rationale,
-)
+from agent.mocks import LLMCallFailed, Tracer, render_fallback_rationale
 from agent.state import AgentState
 
 # A single module-level tracer so every node writes into the same run tree,
@@ -292,21 +286,28 @@ def generate_rationales(state: AgentState) -> dict[str, Any]:
     a list that is already final. That containment is the design, not an
     accident of scope - see agent/mocks.py for the full reasoning.
     """
-    with TRACER.span("generate_rationales", run_type="chain") as parent:
+    provider = state["provider"]
+    with TRACER.span("generate_rationales", run_type="chain",
+                     provider=provider.describe()) as parent:
         briefs: list[dict[str, Any]] = []
         for _, row in state["call_list"].iterrows():
             facts = _facts_for(row)
             with TRACER.span("llm.rationale", run_type="llm",
-                             account_id=row.account_id, model=MODEL_ID) as span:
+                             account_id=row.account_id,
+                             provider=provider.name, model=provider.model) as span:
                 span.inputs = facts
                 try:
-                    payload = call_claude_for_rationale(facts)
+                    payload = provider.generate(facts)
                     source = "llm"
                 except LLMCallFailed as exc:
+                    # One account failing does not fail the run. The provider
+                    # itself was already validated at startup, so this is a
+                    # per-call problem (rate limit, malformed reply, timeout).
                     payload = render_fallback_rationale(facts)
                     source = "fallback_llm_error"
                     span.outputs = {"error": str(exc)}
-                span.outputs = payload
+                else:
+                    span.outputs = payload
             briefs.append({"account_id": row.account_id, "facts": facts,
                            "payload": payload, "source": source})
         parent.outputs = {"generated": len(briefs)}
@@ -370,9 +371,13 @@ def _run_report(state: AgentState, briefs: list[dict[str, Any]] | None) -> dict[
         for brief in briefs:
             for failure in brief.get("guardrail_failures", []):
                 failures[failure["code"]] = failures.get(failure["code"], 0) + 1
+        provider = state.get("provider")
         report["llm"] = {
-            "model": MODEL_ID,
-            "mocked": True,
+            # Recorded per run so an artifact can never misrepresent which
+            # backend produced it. A mock run says so; a live run names the model.
+            "provider": provider.name if provider else "unknown",
+            "model": provider.model if provider else "unknown",
+            "mocked": (not provider.is_live) if provider else True,
             "briefs": len(briefs),
             "by_source": sources,
             "guardrail_rejections": sum(

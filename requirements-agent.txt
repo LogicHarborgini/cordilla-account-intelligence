@@ -9,7 +9,15 @@
 -r requirements.txt
 langgraph==1.2.11
 
-# Not installed and not required. The LLM call in agent/mocks.py is mocked, so
-# the anthropic SDK is never imported. Listed here so the real dependency is
-# obvious to a reader deciding what it would take to run this for real:
-#   anthropic>=1.0.0
+# Optional LLM backends. NONE of these are needed for the default run: the
+# agent uses the deterministic mock unless --llm names a live provider, and
+# every SDK below is imported lazily inside the provider that needs it
+# (agent/providers.py), so a missing package cannot break the default path.
+#
+#   pip install groq        # --llm groq       (tested; see RESEARCH-LOG)
+#   pip install anthropic   # --llm anthropic  (untested, no key available)
+#   pip install openai      # --llm openai     (untested, no key available)
+#
+# Keys are read from the environment at call time and never from a file:
+# GROQ_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY. A live provider with no key
+# fails at startup rather than silently falling back to the mock.

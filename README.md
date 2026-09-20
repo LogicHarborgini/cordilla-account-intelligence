@@ -70,6 +70,31 @@ Writes to `output/`:
 | `run_report.json` | Input-gate findings, tier counts, score distribution, trace spans, guardrail results. |
 | `agent_scored_accounts.csv` | All 300 accounts with score, tier and vendor-data flag. |
 
+**2b. Swap the LLM backend (optional).** The rationale step is pluggable. `mock` is the
+default and needs no key, so everything above runs unchanged without one.
+
+    pip install groq
+    setx GROQ_API_KEY "..."                          # or export, per OS
+
+    python -m agent.graph --list-models groq         # what the provider serves today
+    python -m agent.graph --llm groq
+    python -m agent.graph --llm groq --model openai/gpt-oss-20b
+    python -m agent.graph --compare mock,groq        # same accounts, both backends
+
+Providers: `mock` (default), `groq` (tested), `anthropic` and `openai` (written to the
+documented API shapes but **untested** — no keys were available). Keys come from the
+environment at call time, never from a file. A live provider with no key **fails at startup**
+rather than quietly falling back to the mock, because reporting mock output as a real model's
+is exactly the kind of silent wrongness this project is about.
+
+`--compare` is the reason this exists. The guardrail does not know which model produced a
+rationale — it checks the text against the facts that went into the prompt — so swapping the
+backend scores each model on identical inputs against identical criteria:
+
+    backend                                 briefs   passed   rejected   call errors
+    mock:deterministic-template (mocked)    25       25       0          0
+    groq:openai/gpt-oss-120b                25       21       4          0
+
 **3. Run the guardrail's own tests.** The checks on the LLM's output are validated in both
 directions — that they accept good output and reject each specific failure mode:
 

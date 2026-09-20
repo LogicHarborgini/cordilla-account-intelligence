@@ -420,6 +420,60 @@ this log keeps catching.
 the coverage-skew test. Both were paid for by trimming wording elsewhere — the file was at
 1,200 words before and is at 1,200 after, with no number or claim removed.
 
+## Entry 14 — 2026-09-20 — Making the LLM backend swappable, and what a real model exposed
+
+**Why, given the brief says a mock is judged the same.** It does, and `mock` stays the
+default so the repo runs end to end with no key. The reason to build the switch anyway is
+that `agent/guardrails.py` never knew which model produced a rationale — it checks text
+against the facts that went into the prompt — so swapping the backend turns the guardrail
+into a model-comparison harness. Same accounts, same prompt, same criteria; the difference is
+the model. `--compare mock,groq` prints that table.
+
+**Built:** `agent/providers.py` with `mock` / `groq` / `anthropic` / `openai`, keys from the
+environment at call time, SDKs imported lazily so installing none of them breaks the default
+path. Two rules I held to: a live provider with a missing key or SDK **fails at startup**
+rather than degrading to the mock, and the run report records which backend actually ran.
+Presenting mock text as a real model's output would be the same silent wrongness this whole
+project is built against. Anthropic and OpenAI adapters are written to the documented shapes
+and **labelled untested** — only a Groq key was available.
+
+**First thing the live path found was my own stale knowledge.** I defaulted Groq to
+`llama-3.3-70b-versatile`. `--list-models groq` showed it is no longer served; the catalogue
+is now `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b` and a few others. That
+is exactly why I built `--list-models` instead of hardcoding a list, and the default is now a
+model I verified exists rather than one I remembered.
+
+**Then the live run found a real bug in my guardrail.** First run against
+`openai/gpt-oss-120b`: 25 briefs, **13 rejected** — `too_long` x12. I did not accept that at
+face value, because 12 of 25 looked more like my rule being wrong than the model rambling. It
+was. Reading the actual output:
+
+> "…indicating current engagement. Their vendor intent value of **61.7** suggests they are
+> actively evaluating solutions in your space."
+
+Two sentences. My counter split on `[.!?]+`, which treats the decimal point in `61.7` as a
+sentence boundary. Every one of those 12 rejections contained a decimal intent score.
+
+**The part worth sitting with: the self-test passed 9/9 while this was broken.** The mock
+never emits a decimal, so every test case I had written inherited the stand-in's blind spot.
+A guardrail validated only against mocked input is validated against the wrong distribution —
+and I would not have found this without running a real model, on a step the brief explicitly
+said I could leave mocked.
+
+Fixed the split to require whitespace-or-end after the punctuation, and added two regression
+cases: one that must accept a two-sentence rationale containing a decimal, and one that must
+still reject a genuine three-sentence rationale containing a decimal, so the fix cannot
+quietly disable the check. Now 11/11.
+
+**After the fix:** 21 of 25 passed, 4 rejected, all `ml_vocabulary` — the model reaching for
+words like "score" that should never appear in front of a rep. Those are correct rejections,
+and the template fallback covered them so the call sheet stayed complete. Counts move
+run to run (temperature 0.3), so treat 21/25 as indicative rather than a fixed figure.
+
+**Honest limits:** one provider actually exercised; the other two are unverified code paths.
+The comparison ran once per backend on 25 accounts, which is an illustration of the mechanism
+rather than a statistically meaningful model evaluation.
+
 ---
 
 *End of log.*

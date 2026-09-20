@@ -1,23 +1,23 @@
 {
   "trace": {
-    "run_id": "run-20260920T063126Z",
+    "run_id": "run-20260920T062615Z",
     "project": "cordilla-call-list",
     "span_count": 57,
     "by_run_type": {
       "chain": {
         "count": 7,
         "errors": 0,
-        "total_ms": 1307.82
+        "total_ms": 79262.64
       },
       "llm": {
         "count": 25,
         "errors": 0,
-        "total_ms": 0.02
+        "total_ms": 77899.02
       },
       "evaluator": {
         "count": 25,
         "errors": 0,
-        "total_ms": 2.07
+        "total_ms": 7.7
       }
     },
     "note": "Token counts are mocked. A real LangSmith trace carries usage from the API response."
@@ -74,20 +74,23 @@
     "accounts_without_vendor_data": 116
   },
   "llm": {
-    "provider": "mock",
-    "model": "deterministic-template",
-    "mocked": true,
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "mocked": false,
     "briefs": 25,
     "by_source": {
-      "llm": 25
+      "llm": 21,
+      "fallback_guardrail_rejected": 4
     },
-    "guardrail_rejections": 0,
-    "guardrail_failure_codes": {}
+    "guardrail_rejections": 4,
+    "guardrail_failure_codes": {
+      "ml_vocabulary": 4
+    }
   },
   "artifacts": {
-    "call_sheet": "output\\call_sheet.md",
-    "crm_tasks": "output\\crm_tasks.json",
-    "run_report": "output\\run_report.json",
-    "scored_accounts": "output\\agent_scored_accounts.csv"
+    "call_sheet": "output_groq\\call_sheet.md",
+    "crm_tasks": "output_groq\\crm_tasks.json",
+    "run_report": "output_groq\\run_report.json",
+    "scored_accounts": "output_groq\\agent_scored_accounts.csv"
   }
 }

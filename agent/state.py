@@ -19,6 +19,10 @@ class AgentState(TypedDict, total=False):
     input_csv: str
     capacity: int          # how many accounts a rep can realistically work
     output_dir: str
+    # The resolved LLM backend (agent/providers.py). Passed in rather than
+    # constructed inside a node, so an unusable provider fails before any
+    # scoring happens instead of halfway through a batch.
+    provider: Any
 
     # --- set by validate_input ---
     gate: dict[str, Any]   # findings, severity, and the halt decision

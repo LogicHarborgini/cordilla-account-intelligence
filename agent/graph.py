@@ -32,7 +32,7 @@ from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
 
-from agent import nodes
+from agent import mocks, nodes, providers
 from agent.state import AgentState
 
 DEFAULT_INPUT = "data/accounts_to_score.csv"
@@ -81,12 +81,71 @@ def build_graph():
     return builder.compile()
 
 
+def _run_once(graph, args, provider):
+    return graph.invoke({
+        "input_csv": args.input,
+        "output_dir": args.output_dir,
+        "capacity": args.capacity,
+        "provider": provider,
+    })
+
+
+def _compare(graph, args, names: list[str]) -> int:
+    """Run the same accounts through several backends and score each one.
+
+    THE POINT: the guardrail is provider-agnostic, so this is a like-for-like
+    comparison on identical inputs against identical criteria, not an
+    impression of which output reads better.
+    """
+    rows = []
+    for name in names:
+        try:
+            provider = providers.get_provider(name, args.model)
+        except providers.ProviderNotConfigured as exc:
+            print(f"skipping {name}: {exc}")
+            continue
+        print(f"running {provider.describe()} ...")
+        nodes.TRACER = mocks.Tracer()          # fresh trace per backend
+        final = _run_once(graph, args, provider)
+        llm = final["report"]["llm"]
+        rows.append({
+            "backend": provider.describe(),
+            "briefs": llm["briefs"],
+            "clean": llm["by_source"].get("llm", 0),
+            "rejected": llm["guardrail_rejections"],
+            "errors": sum(v for k, v in llm["by_source"].items() if k.endswith("error")),
+            "codes": llm["guardrail_failure_codes"],
+        })
+
+    if not rows:
+        print("no usable backends")
+        return 1
+    print(f"\n  {'backend':<40}{'briefs':<9}{'passed':<9}{'rejected':<11}{'call errors'}")
+    for r in rows:
+        print(f"  {r['backend']:<40}{r['briefs']:<9}{r['clean']:<9}"
+              f"{r['rejected']:<11}{r['errors']}")
+    for r in rows:
+        if r["codes"]:
+            print(f"\n  {r['backend']} guardrail failures: {json.dumps(r['codes'])}")
+    print("\nSame accounts, same prompt, same checks. Differences are the model.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a prioritised SDR call list.")
     parser.add_argument("--input", default=DEFAULT_INPUT)
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--capacity", type=int, default=DEFAULT_CAPACITY,
                         help="accounts one rep can work (assumption, not from the data)")
+    parser.add_argument("--llm", default="mock", choices=sorted(providers.REGISTRY),
+                        help="rationale backend (default: mock, needs no API key)")
+    parser.add_argument("--model", default=None,
+                        help="override the backend's default model id")
+    parser.add_argument("--list-models", metavar="PROVIDER",
+                        help="list the models a provider currently serves, then exit")
+    parser.add_argument("--compare", metavar="A,B",
+                        help="run several backends over the same accounts and "
+                             "compare guardrail pass rates")
     parser.add_argument("--print-graph", action="store_true",
                         help="print the compiled graph as mermaid and exit")
     args = parser.parse_args()
@@ -97,11 +156,32 @@ def main() -> int:
         print(graph.get_graph().draw_mermaid())
         return 0
 
-    final = graph.invoke({
-        "input_csv": args.input,
-        "output_dir": args.output_dir,
-        "capacity": args.capacity,
-    })
+    if args.list_models:
+        try:
+            for model_id in providers.REGISTRY[args.list_models].list_models():
+                print(model_id)
+        except KeyError:
+            print(f"unknown provider {args.list_models!r}. "
+                  f"Available: {', '.join(providers.REGISTRY)}")
+            return 2
+        except providers.ProviderNotConfigured as exc:
+            print(f"cannot list models: {exc}")
+            return 2
+        return 0
+
+    if args.compare:
+        return _compare(graph, args, [n.strip() for n in args.compare.split(",")])
+
+    # Resolve the backend BEFORE running anything: a missing key or SDK should
+    # stop the run at the door, never degrade quietly to the mock mid-batch.
+    try:
+        provider = providers.get_provider(args.llm, args.model)
+    except providers.ProviderNotConfigured as exc:
+        print(f"cannot start: {exc}")
+        return 2
+
+    print(f"rationale backend: {provider.describe()}")
+    final = _run_once(graph, args, provider)
 
     gate = final["gate"]
     print(f"input        : {args.input} ({gate['rows_in']} rows)")
@@ -119,7 +199,8 @@ def main() -> int:
     report = final["report"]
     print(f"tiers        : {report['scoring']['tier_counts']}")
     print(f"call list    : {len(final['call_list'])} accounts (capacity {args.capacity})")
-    print(f"rationales   : {report['llm']['by_source']}")
+    print(f"rationales   : {report['llm']['by_source']} "
+          f"via {report['llm']['provider']}:{report['llm']['model']}")
     print(f"guardrail    : {report['llm']['guardrail_rejections']} rejected"
           f"{' -> ' + json.dumps(report['llm']['guardrail_failure_codes']) if report['llm']['guardrail_failure_codes'] else ''}")
     print(f"trace        : {report['trace']['span_count']} spans "
