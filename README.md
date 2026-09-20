@@ -119,6 +119,11 @@ backend scores each model on identical inputs against identical criteria:
     mock:deterministic-template (mocked)    25       25       0          0
     groq:openai/gpt-oss-120b                25       21       4          0
 
+One observed run. The live column moves between runs — the model samples at temperature 0.3,
+so expect a different split, not these exact counts. The rejections above were all
+`ml_vocabulary`: the model reaching for words like "score" in front of a rep. Rejected
+rationales fall back to the template, so the call sheet is always complete.
+
 **3. Run the guardrail's own tests.** The checks on the LLM's output are validated in both
 directions — that they accept good output and reject each specific failure mode:
 
