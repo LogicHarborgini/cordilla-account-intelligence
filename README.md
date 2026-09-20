@@ -8,6 +8,20 @@
 
 Tested against Python 3.11+ with the exact pinned versions above. If you'd rather work in a notebook than plain scripts (either is fine, see the take-home packet), `pip install -r requirements-notebook.txt` instead (adds Jupyter on top of the same pinned core).
 
+**Use Python 3.11 or 3.12. Python 3.13 is not supported for this project.**
+
+The assessment pins `numpy==1.26.4` and `scikit-learn==1.5.2`, which are not compatible with Python 3.13 through the required pre-built wheels. Using Python 3.11 or 3.12 allows the pinned dependencies to install normally.
+
+The environment has been verified with **Python 3.12.14**, including successful loading of `model/model.pkl` with no version warnings.
+
+If using Conda:
+
+```bash
+conda create -n cordilla python=3.12 -y
+conda activate cordilla
+pip install -r requirements.txt
+```
+
 Loading the model (already trained, don't retrain it):
 
     import pickle
