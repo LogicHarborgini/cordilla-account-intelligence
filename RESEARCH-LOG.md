@@ -257,146 +257,7 @@ Five months is a couple of quarters. That is the exact interval in the planted b
 
 **What happens when something trips** is specified per severity in the code, with an owner and an action, because a check without a defined response is a log line. The escalation terminates somewhere concrete: if the outcome check reads BROKEN, stop presenting model-ranked tiers and fall back to the two-fact ordering — vendor data held, trial started — which reached 0.612 AUC in-sample at zero cost. That fallback was priced during the impact work specifically so the decision would not have to be made under pressure.
 
-## Entry 12 — 2026-09-20 — Everything I would have to defend, in one place
-
-Raw material, not a presentation. Every number with where it came from and what is wrong with
-it. Reproduce with `python analysis/explore_data.py` and `python analysis/score_and_evaluate.py`.
-
-### The single most important caveat
-
-**Every performance figure below is in-sample.** The model was fit on the same 1,200 rows I
-measured it against, and no holdout exists. The packet rules out cross-validating. So 0.759
-AUC and a 26.67% top-tier rate are **upper bounds, not measurements**, and true out-of-sample
-skill is not knowable from what I was given. If I am challenged on one thing, it is this, and
-the answer is that I knew and said so rather than presenting it as validation.
-
-### Data (`analysis/explore_data.py`)
-
-| Figure | Value |
-|---|---|
-| Training rows / scoring batch | 1,200 / 300 |
-| Baseline conversion | 78/1,200 = **6.50%** |
-| `intent_score` missing | 482/1,200 = 40.17% (train), 116/300 = 38.67% (batch) |
-| Vendor coverage | 59.83% train, 61.33% batch |
-| `account_type` split | Prospect 632, Suspect 402, Former Customer 166 |
-| Conversion by type | 6.65% / 5.97% / 7.23% — flat, weak standalone signal |
-| `trial_started` | 223/1,200 (18.6%), converting 9.87% |
-| **Vendor coverage present vs absent** | **8.22% vs 3.94%, chi2 7.98, p = 0.0047** |
-| Intent score *value*, by quartile | 6.59 / 10.11 / 6.11 / 10.11%, chi2 3.39, **p = 0.335**, r = 0.036 |
-| 2x2 segments (intent x trial) | 3.51% (n=399) → 6.02% (83) → 7.27% (578) → **12.14% (140)** |
-| Snapshot age | train median 280d (1–711), batch median 121d (0–675) |
-| Integrity | 0 duplicate IDs, 0 overlap between files, no negatives, no unseen categories |
-
-**Hypothesis I tested and refuted:** the train/score snapshot-age gap threatens calibration.
-It does not. Age predicts neither conversion (quartiles 5.32/7.00/8.03/5.67, p = 0.511,
-r = 0.009) nor any model feature (all seven Spearman rho between −0.06 and +0.04, p > 0.15,
-in both files independently), and the coverage gap survives inside every age band (+5.97,
-+4.85, +2.09 pp). Segment mix barely moves (33.2/6.9/48.2/11.7 vs 32.7/6.0/50.7/10.7).
-Demoted to an operational freshness concern; it is not a calibration risk and I will not
-present it as one.
-
-### The model (`model/model.pkl`)
-
-`ColumnTransformer` — `OneHotEncoder(handle_unknown='ignore')` on account_type/industry,
-`SimpleImputer(strategy='median', add_indicator=False)` on the 7 numerics, `remainder='drop'`
-— feeding `GradientBoostingClassifier(n_estimators=40, max_depth=2, learning_rate=0.05,
-subsample=0.7, min_samples_leaf=20, random_state=42)`. 16 features reach the classifier.
-
-- `classes_ = [0 1]`, so **P(convert) = `predict_proba(X)[:, 1]`**. Verified, not assumed.
-- Imputer `statistics_` = [67, **25.3**, 1, 0, 0, 2, 1].
-- **A missing intent score scores identically to a real 25.3** — both 0.044872 on the same
-  row. `add_indicator=False` discards the strongest signal in the data.
-- Importances: intent_score **0.2712**, web_touchpoints 0.2139, sales_contacts 0.2092,
-  employee_count 0.1113, trial_started 0.0618, trial_active_users 0.0479, mql 0.0443,
-  categoricals ≈ 0.
-- Selects columns **by name**; rejects a bare numpy array.
-
-### Performance, all in-sample
-
-| Ranker | AUC |
-|---|---|
-| Model | **0.759** |
-| Two-fact heuristic (coverage x trial) | 0.612 |
-| Coverage alone | 0.585 |
-| Random | 0.500 |
-
-Top-N capture: 5% → 15/78 converters at 25.00%; **10% → 32/78 (41.0%) at 26.67%, 4.10x**;
-20% → 42/78 at 17.50%; 30% → 53/78 at 14.72%; 50% → 61/78 at 10.17%.
-
-Tiers at the frozen cutoffs (0.1088 / 0.0792 / 0.0525): **A 26.67%** (32/120), B 9.29%
-(17/183), C 4.04% (12/297), D 2.83% (17/600). Calls per conversion 3.8 / 10.8 / 24.7 / 35.3
-against 15.4 at random. Working A+B = 303 accounts (25.2%) reaches 49/78 converters (62.8%).
-**Skipping D forgoes 21.8% of conversions for half the calls.**
-
-**Calibration is poor and non-monotonic** — decile 5 converts at 0.83%, below decile 0's
-1.67%; the top decile predicts 13.86% and delivers 26.67%. Ranks well, calibrates badly:
-order and cut with it, never quote it as a likelihood.
-
-**The blind spot, quantified:** model says 5.55% for uncovered accounts against an actual
-3.94% (**+1.61pp over-scored**); 7.33% vs 8.22% for covered (−0.89pp).
-
-### The live batch
-
-A 28 (9.3%), B 46 (15.3%), C 79 (26.3%), D 147 (49.0%). Scores 0.0381–0.2094, mean 0.0655,
-109/300 above the 6.5% baseline. Coverage by tier A 78.6% / B 67.4% / C 67.1% / D 53.1% —
-**Tier A is the best-covered tier, so the blind spot did not concentrate there**, which is
-the opposite of what I expected. But 6 of 28 Tier A accounts hold no vendor data:
-`ACC-00122`, `ACC-00646`, `ACC-00265`, `ACC-00958`, `ACC-00686`, `ACC-00768`.
-
-### Agent and monitoring
-
-Nine nodes, one conditional edge. Guardrail self-test **9/9**. Gate verified against four
-broken batches: unseen industry → halt, duplicate IDs → halt, 18% coverage → halt (−14.8σ),
-51.33% coverage → **warn and proceed** (−3.0σ) with Tier A shrinking. Real batch reads +0.5σ.
-
-CUSUM k = 0.5, h = 5.0, burn-in 6 runs. On the 18-run synthetic history: coverage fires at
-run 15 **while the point check never fires at all**; tier-A share at run 14 (point check 15);
-mean score at run 12 (point check 15).
-
-Outcome check: detecting a fall from 26.67% to 20% needs **255** Tier A accounts — 131 for
-17.5%, 78 for 15%, 58 for 13.3%. At ~28 per batch plus the 90-day window that is **160 days
-weekly, 390 monthly**. Too slow to be the alarm; that is the finding, not a flaw.
-
-### Assumptions, stated as assumptions
-
-- **Rep capacity = 25/run.** Not in the data. CLI parameter.
-- **Actionable floor = 15%** for the top tier. My judgement about when it stops beating the
-  free heuristic, not a measured threshold.
-- **Weekly cadence** in the latency table is illustrative; the real schedule is unknown.
-- **Gate at 3σ warn / 6σ halt**, CUSUM k=0.5/h=5, burn-in 6 runs — conventional choices,
-  defensible but not derived from Cordilla's data.
-- The drift history is **synthetic** and labelled so in the code.
-
-### Known gaps I would raise before being asked
-
-1. No holdout, so no honest out-of-sample number exists.
-2. No revenue, ACV, headcount or call capacity → no ROI figure anywhere, deliberately.
-3. The LLM is mocked; the rationale text is a stand-in, not real model output. What is real
-   is the prompt, the schema, the guardrail and the fallback.
-4. Salesforce is mocked at the payload boundary — the tasks are written, not posted.
-5. One static batch. Everything cross-run is demonstrated on simulation.
-6. **Two different CI methods appear in this repo** and give slightly different intervals for
-   the same Tier A cohort: my Wilson helper gives [19.6%, 35.2%], scipy's
-   `binomtest().proportion_ci()` defaults to Clopper–Pearson and gives [19.01%, 35.51%]. Both
-   correct, different methods. Flagging it so it is not mistaken for an inconsistency.
-
-### Corrections I made during the build, in order
-
-1. Refused to discuss impact before computing it from the data (planning session).
-2. **Refuted my own snapshot-age hypothesis** with a test designed to break it — the
-  strongest example of overriding earlier AI-assisted output.
-3. Caught `RESEARCH-LOG.md` being silently excluded by `.gitignore` — a graded deliverable.
-4. Fixed tier cutoffs being recomputed per run rather than frozen; corrected already-published
-   figures in a commit that says so in its subject line.
-5. Fixed a monitor that would have paged weekly by scaling to sampling error instead of
-   observed variation.
-6. Caught my own simulator injecting less noise than sampling error, which flattered the
-   detector and stopped the burn-in fix from being exercised.
-7. Caught narration in `outcome_monitor.py` claiming a verdict the code did not produce.
-8. Removed the duplicated tier constants from `analysis/` so the two code paths cannot drift
-   apart again — the same defect as (4), closed at the root.
-
-## Entry 13 — 2026-09-20 — Closing a gap: who the impact numbers actually describe
+## Entry 12 — 2026-09-20 — Closing a gap: who the impact numbers actually describe
 
 Re-read the brief against the deliverables and found one instruction unmet. It asks for the
 full untouched-account population to be reasoned about in the impact framing; that reasoning
@@ -420,7 +281,7 @@ this log keeps catching.
 the coverage-skew test. Both were paid for by trimming wording elsewhere — the file was at
 1,200 words before and is at 1,200 after, with no number or claim removed.
 
-## Entry 14 — 2026-09-20 — Making the LLM backend swappable, and what a real model exposed
+## Entry 13 — 2026-09-20 — Making the LLM backend swappable, and what a real model exposed
 
 **Why, given the brief says a mock is judged the same.** It does, and `mock` stays the
 default so the repo runs end to end with no key. The reason to build the switch anyway is
@@ -474,6 +335,177 @@ run to run (temperature 0.3), so treat 21/25 as indicative rather than a fixed f
 The comparison ran once per backend on 25 accounts, which is an illustration of the mechanism
 rather than a statistically meaningful model evaluation.
 
+## Entry 14 — 2026-09-20 — Final consolidation: everything I would defend live
+
+Raw material, not a presentation. Every number with where it came from and what is wrong with
+it. Reproduce with `python analysis/explore_data.py` and `python analysis/score_and_evaluate.py`.
+
+### The single most important caveat
+
+**Every performance figure below is in-sample.** The model was fit on the same 1,200 rows I
+measured it against, and no holdout exists. The packet rules out cross-validating. So 0.759
+AUC and a 26.67% top-tier rate are **upper bounds, not measurements**, and true out-of-sample
+skill is not knowable from what I was given. If I am challenged on one thing, it is this, and
+the answer is that I knew and said so rather than presenting it as validation.
+
+### Data (`analysis/explore_data.py`)
+
+| Figure | Value |
+|---|---|
+| Training rows / scoring batch | 1,200 / 300 |
+| Baseline conversion | 78/1,200 = **6.50%** |
+| `intent_score` missing | 482/1,200 = 40.17% (train), 116/300 = 38.67% (batch) |
+| Vendor coverage | 59.83% train, 61.33% batch |
+| `account_type` split | Prospect 632, Suspect 402, Former Customer 166 |
+| Conversion by type | 6.65% / 5.97% / 7.23% — flat, weak standalone signal |
+| `trial_started` | 223/1,200 (18.6%), converting 9.87% |
+| **Vendor coverage present vs absent** | **8.22% vs 3.94%, chi2 7.98, p = 0.0047** |
+| Intent score *value*, by quartile | 6.59 / 10.11 / 6.11 / 10.11%, chi2 3.39, **p = 0.335**, r = 0.036 |
+| 2x2 segments (intent x trial) | 3.51% (n=399) → 6.02% (83) → 7.27% (578) → **12.14% (140)** |
+| Snapshot age | train median 280d (1–711), batch median 121d (0–675) |
+| Integrity | 0 duplicate IDs, 0 overlap between files, no negatives, no unseen categories |
+
+**Hypothesis I tested and refuted:** the train/score snapshot-age gap threatens calibration.
+It does not. Age predicts neither conversion (quartiles 5.32/7.00/8.03/5.67, p = 0.511,
+r = 0.009) nor any model feature (all seven Spearman rho between −0.06 and +0.04, p > 0.15,
+in both files independently), and the coverage gap survives inside every age band (+5.97,
++4.85, +2.09 pp). Segment mix barely moves (33.2/6.9/48.2/11.7 vs 32.7/6.0/50.7/10.7).
+Demoted to an operational freshness concern; it is not a calibration risk and I will not
+present it as one.
+
+**Who the labelled cohort actually is** — the caveat every tier rate depends on. It is not
+the untouched population the VP is pointing at: 59.4% have already been contacted by sales,
+51.4% are already MQLs, 67.2% have visited the site, 18.6% started a trial, and only **5.1%
+are cold on every signal**. The brief puts cold outreach well under 1% while this cohort
+converts at 6.50%, which reconciles the two figures: they describe different populations. So
+the tier rates are honest for accounts resembling this slice and must not be extrapolated to
+the untouched majority. Separately, the brief's claim that intent coverage skews to larger
+accounts is **directionally true but weak here** — 126.5 vs 113.2 employees, 1.12x, Welch's
+**p = 0.2545**, not significant. Reported as measured rather than repeated as confirmed.
+
+### The model (`model/model.pkl`)
+
+`ColumnTransformer` — `OneHotEncoder(handle_unknown='ignore')` on account_type/industry,
+`SimpleImputer(strategy='median', add_indicator=False)` on the 7 numerics, `remainder='drop'`
+— feeding `GradientBoostingClassifier(n_estimators=40, max_depth=2, learning_rate=0.05,
+subsample=0.7, min_samples_leaf=20, random_state=42)`. 16 features reach the classifier.
+
+- `classes_ = [0 1]`, so **P(convert) = `predict_proba(X)[:, 1]`**. Verified, not assumed.
+- Imputer `statistics_` = [67, **25.3**, 1, 0, 0, 2, 1].
+- **A missing intent score scores identically to a real 25.3** — both 0.044872 on the same
+  row. `add_indicator=False` discards the strongest signal in the data.
+- Importances: intent_score **0.2712**, web_touchpoints 0.2139, sales_contacts 0.2092,
+  employee_count 0.1113, trial_started 0.0618, trial_active_users 0.0479, mql 0.0443,
+  categoricals ≈ 0.
+- Selects columns **by name**; rejects a bare numpy array.
+
+### Performance, all in-sample
+
+| Ranker | AUC |
+|---|---|
+| Model | **0.759** |
+| Two-fact heuristic (coverage x trial) | 0.612 |
+| Coverage alone | 0.585 |
+| Random | 0.500 |
+
+Top-N capture: 5% → 15/78 converters at 25.00%; **10% → 32/78 (41.0%) at 26.67%, 4.10x**;
+20% → 42/78 at 17.50%; 30% → 53/78 at 14.72%; 50% → 61/78 at 10.17%.
+
+Tiers at the frozen cutoffs (0.1088 / 0.0792 / 0.0525): **A 26.67%** (32/120), B 9.29%
+(17/183), C 4.04% (12/297), D 2.83% (17/600). Calls per conversion 3.8 / 10.8 / 24.7 / 35.3
+against 15.4 at random. Working A+B = 303 accounts (25.2%) reaches 49/78 converters (62.8%).
+**Skipping D forgoes 21.8% of conversions for half the calls.**
+
+**Calibration is poor and non-monotonic** — decile 5 converts at 0.83%, below decile 0's
+1.67%; the top decile predicts 13.86% and delivers 26.67%. Ranks well, calibrates badly:
+order and cut with it, never quote it as a likelihood.
+
+**The blind spot, quantified:** model says 5.55% for uncovered accounts against an actual
+3.94% (**+1.61pp over-scored**); 7.33% vs 8.22% for covered (−0.89pp).
+
+### The live batch
+
+A 28 (9.3%), B 46 (15.3%), C 79 (26.3%), D 147 (49.0%). Scores 0.0381–0.2094, mean 0.0655,
+109/300 above the 6.5% baseline. Coverage by tier A 78.6% / B 67.4% / C 67.1% / D 53.1% —
+**Tier A is the best-covered tier, so the blind spot did not concentrate there**, which is
+the opposite of what I expected. But 6 of 28 Tier A accounts hold no vendor data:
+`ACC-00122`, `ACC-00646`, `ACC-00265`, `ACC-00958`, `ACC-00686`, `ACC-00768`.
+
+### Agent and monitoring
+
+Nine nodes, one conditional edge. Guardrail self-test **11/11**. Gate verified against four
+broken batches: unseen industry → halt, duplicate IDs → halt, 18% coverage → halt (−14.8σ),
+51.33% coverage → **warn and proceed** (−3.0σ) with Tier A shrinking. Real batch reads +0.5σ.
+
+The rationale backend is pluggable (`--llm mock|groq|anthropic|openai`, mock by default and
+keyless). Only Groq was testable. Live against `openai/gpt-oss-120b`: **21 of 25 briefs
+passed, 4 rejected**, all `ml_vocabulary` — the model reaching for words like "score" in
+front of a rep. Counts move run to run at temperature 0.3, so treat 21/25 as indicative. The
+first live run rejected 13 of 25, which turned out to be **my bug, not the model's**: the
+sentence counter split on any period, so the decimal in "vendor intent value of 61.7" read as
+a sentence break. The self-test had passed 9/9 against that broken check because the mock
+never emits a decimal. Fixed, plus two regression cases in both directions.
+
+CUSUM k = 0.5, h = 5.0, burn-in 6 runs. On the 18-run synthetic history: coverage fires at
+run 15 **while the point check never fires at all**; tier-A share at run 14 (point check 15);
+mean score at run 12 (point check 15).
+
+Outcome check: detecting a fall from 26.67% to 20% needs **255** Tier A accounts — 131 for
+17.5%, 78 for 15%, 58 for 13.3%. At ~28 per batch plus the 90-day window that is **160 days
+weekly, 390 monthly**. Too slow to be the alarm; that is the finding, not a flaw.
+
+### Assumptions, stated as assumptions
+
+- **Rep capacity = 25/run.** Not in the data. CLI parameter.
+- **Actionable floor = 15%** for the top tier. My judgement about when it stops beating the
+  free heuristic, not a measured threshold.
+- **Weekly cadence** in the latency table is illustrative; the real schedule is unknown.
+- **Gate at 3σ warn / 6σ halt**, CUSUM k=0.5/h=5, burn-in 6 runs — conventional choices,
+  defensible but not derived from Cordilla's data.
+- The drift history is **synthetic** and labelled so in the code.
+
+### Known gaps I would raise before being asked
+
+1. No holdout, so no honest out-of-sample number exists.
+2. No revenue, ACV, headcount or call capacity → no ROI figure anywhere, deliberately.
+3. The default LLM path is mocked, and the committed `output/` artifacts are mock output.
+   `output_groq/` holds one genuinely live run for comparison. The Anthropic and OpenAI
+   adapters are written to documented API shapes but **never executed** — no keys.
+4. Salesforce is mocked at the payload boundary — the tasks are written, not posted.
+5. One static batch. Everything cross-run is demonstrated on simulation.
+6. **Two different CI methods appear in this repo** and give slightly different intervals for
+   the same Tier A cohort: my Wilson helper gives [19.6%, 35.2%], scipy's
+   `binomtest().proportion_ci()` defaults to Clopper–Pearson and gives [19.01%, 35.51%]. Both
+   correct, different methods. Flagging it so it is not mistaken for an inconsistency.
+
+### Corrections I made during the build, in order
+
+1. Refused to discuss impact before computing it from the data (planning session).
+2. **Refuted my own snapshot-age hypothesis** with a test designed to break it — the
+  strongest example of overriding earlier AI-assisted output.
+3. Caught `RESEARCH-LOG.md` being silently excluded by `.gitignore` — a graded deliverable.
+4. Fixed tier cutoffs being recomputed per run rather than frozen; corrected already-published
+   figures in a commit that says so in its subject line.
+5. Fixed a monitor that would have paged weekly by scaling to sampling error instead of
+   observed variation.
+6. Caught my own simulator injecting less noise than sampling error, which flattered the
+   detector and stopped the burn-in fix from being exercised.
+7. Caught narration in `outcome_monitor.py` claiming a verdict the code did not produce.
+8. Removed the duplicated tier constants from `analysis/` so the two code paths cannot drift
+   apart again — the same defect as (4), closed at the root.
+9. Found the brief's "reason about the full untouched population" instruction unmet in any
+   deliverable, and closed it with measured numbers rather than by restating the brief.
+10. Tested the brief's own claim about intent coverage skewing larger instead of repeating
+    it, and reported p = 0.2545 as weak rather than rounding it up to confirmed.
+11. **A live model exposed a bug my own tests could not.** The guardrail's sentence counter
+    treated decimal points as sentence boundaries, wrongly rejecting 12 of 25 valid
+    rationales, and the 9/9 self-test never caught it because every case came from a mock
+    that emits no decimals. Test cases drawn only from a stand-in inherit its blind spots —
+    the most useful thing I learned in this build, and the reason I ran a real model on a
+    step the brief said I could leave mocked.
+
 ---
 
-*End of log.*
+*End of log. This is the consolidating entry the brief asks for: every figure above has a
+source script, every assumption is labelled as one, and the gaps are listed rather than
+smoothed over.*
