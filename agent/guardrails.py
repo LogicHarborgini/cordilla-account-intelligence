@@ -21,6 +21,13 @@ rep. The three failures that matter here are all shape-valid:
 Every check below maps to one of those. Run the harness directly:
 
     python -m agent.guardrails
+
+A note on scope, since the brief says no formal test suite is wanted: this is not one.
+There is no pytest, no fixtures, no CI. It is an evaluation harness for a non-deterministic
+component, in the same file as the component, run with one command. The distinction matters
+because the thing being validated is LLM output, which cannot be checked by reading the code
+that produces it — and because two of these cases exist only because a live model broke a
+check that nine hand-written ones had already passed.
 """
 
 from __future__ import annotations

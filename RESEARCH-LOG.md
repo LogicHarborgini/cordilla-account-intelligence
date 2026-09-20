@@ -521,3 +521,79 @@ weekly, 390 monthly**. Too slow to be the alarm; that is the finding, not a flaw
 *End of log. This is the consolidating entry the brief asks for: every figure above has a
 source script, every assumption is labelled as one, and the gaps are listed rather than
 smoothed over.*
+
+---
+
+## Appendix A — verbatim prompts
+
+The entries above describe what I asked in prose. This appendix quotes the actual text for
+the moments that changed an outcome, since "how you prompt" is explicitly part of what is
+being looked at. Long prompts are trimmed at `[...]`; nothing is reworded.
+
+**A1 — Setting the constraint that shaped every phase** (produced Entry 5)
+
+> "Read CLAUDE.md fully, including section 10 (the corrected roadmap) and the RESEARCH-LOG.md
+> entries already there. We're starting Phase 2: inspect this actual folder — every file and
+> directory, what each is for, which were provided by the company vs. which I need to build
+> vs. which I must not modify. Compare it against what CLAUDE.md says the assessment
+> requires. [...] Then stop and wait for me before Phase 3."
+
+Inspecting the real folder rather than the documented one is what surfaced `RESEARCH-LOG.md`
+being silently excluded by `.gitignore`.
+
+**A2 — Forcing the framework decision to stand on its own** (produced Entry 10)
+
+> "The target JD (Dialpad, AI Engineer) name-drops LangGraph, LangChain, and OpenAI Agents
+> SDK as skills they want. That makes this the single easiest place in the whole exercise to
+> either look sharp (a framework choice tied to a real control-flow need) or look like you're
+> pattern-matching to keywords in a job posting [...] **So: the honest answer here is worth
+> more than the impressive-sounding one.** [...] Answer the framework question directly, on
+> its own merits [...] Don't default to 'skip it' either; make the actual case either way."
+
+This is why the proposal argues observability rather than control flow, and names what was
+deliberately *not* adopted.
+
+**A3 — Refusing to let the LLM step be decorative** (same prompt as A2)
+
+> "Decide where the mocked LLM call earns its place. It has to do something the deterministic
+> code genuinely can't [...] **If you can't articulate what the LLM adds beyond what Phases
+> 5–7 already built deterministically, say so plainly instead of inventing a use for it.**"
+
+The "real but modest" framing and the complete template fallback both come from this.
+
+**A4 — Overriding the AI's wording on a statistical claim** (Entry 6)
+
+> "yes, but change this — 'Current coverage is stable (40.17% training vs 38.67% scoring,
+> -1.5pp).' to — 'Current coverage is stable — the vendor supplies data on 59.83% of training
+> accounts and 61.33% of the accounts to be scored (missingness of 40.17% and 38.67%
+> respectively [...])'"
+
+I had written *coverage* and then quoted *missingness* figures, which inverts the meaning.
+
+**A5 — Stopping an over-claim** (Entry 12)
+
+> "'Tier A shrinks' rather than staying full — in this specific test batch, from 28 to 21.
+> The exact count depends on which accounts happen to lose coverage [...] so I'm not
+> presenting 21 as a fixed constant — but the direction and the mechanism are robust"
+
+The 21 came from a seeded random sample. Presenting it as a property of the system would have
+been wrong, and a panelist re-running it with a different seed would have caught it.
+
+**A6 — Insisting the git history not be quietly rewritten** (commit `9315ff6`)
+
+> "was an earlier version of Entry 8 (with the original 9.44%/4.00%/78/148 numbers) ever
+> already committed to git before this correction? [...] If yes [...] then I'd want the
+> commit message for this change to say explicitly 'corrects Entry 8's tier figures, see
+> entry for why' rather than silently overwriting the file, so the git diff itself doesn't
+> look like a quiet retcon to anyone comparing commits."
+
+It had been committed. That commit's subject line names the superseded hash for this reason.
+
+**A7 — Requiring the gap be closed with data, not assertion** (Entry 12)
+
+> "Also verify and report (don't just assert) whether the brief's claim that 'intent data
+> vendor coverage skews toward larger accounts' holds in our data [...] **State the actual
+> p-value in whatever you write — if it's not below 0.05, say the claim is directionally true
+> but weak in this extract, don't round that up to 'confirmed.'**"
+
+Welch's p = 0.2545. Reported as weak.
