@@ -199,6 +199,38 @@ Scored all 300 accounts via `analysis/score_and_evaluate.py` (300 in, 300 out, a
 
 **Two caveats I moved out of the footnotes and into the main framing,** because both are things a rep will encounter directly: six of the twenty-eight tier A accounts have no vendor intent data and sit in the group the model over-scores by +1.61pp (named individually in the output, since reps will call them); and the ranking is trustworthy while the probability is not, given the middle deciles are non-monotonic. Order and cut with it. Never quote it as a likelihood.
 
+## Entry 10 — 2026-09-20 — Agent architecture, and the framework question I had to answer twice
+
+**Tool:** Claude Code (Opus 5).
+
+**Three options, weighed on what the data work had already established.** A deterministic batch pipeline with no LLM at all; the same spine with one mocked LLM enrichment step and a guardrail; or an LLM orchestrator with tool-calling that decides which accounts merit investigation. I recommended the middle one.
+
+**Why not the orchestrator, which is the one that matches the job description's vocabulary.** It would replace a threshold comparison I had already validated against real outcomes with a non-deterministic decision nobody can reproduce. The argument I actually care about is not an engineering-taste one: the scenario's whole premise is a scoring system that quietly lost credibility, which means *"why is this account on my list?"* has to have a stable answer. An LLM-routed triage decision cannot be re-derived tomorrow, cannot be diffed when it changes, and cannot be checked against the 26.67% tier A rate I measured. **Auditability is a product requirement here, not a preference**, and that option trades it away for nothing.
+
+**Where the LLM does earn a place, stated without inflation.** It writes the per-account justification and a suggested opening line. It makes no decision — ranking, tiering, flagging and the capacity cut are all upstream of it. Templates handle this badly only because the interesting cases are combinatorial (heavy web engagement with no trial, a dormant trial with heavy sales contact, a large account with no vendor coverage), and the branches multiply. That is a **real but modest** gain, perhaps 80% coverable by a template, which is exactly why `render_fallback_rationale()` is a complete working template rather than a stub. The LLM is an enhancement layer over a functioning baseline, so its marginal value stays measurable and a dead API degrades the output instead of deleting somebody's call list.
+
+**Then the framework question came back.** Context I should be straight about: LangChain/LangGraph/LangSmith came up in an earlier conversation with the interviewer, who then asked informally for "an efficient approach." That is signal about which tools to *consider*, not a reason to adopt them, so I made it clear the decision had to clear the same bar I had just used to reject the orchestrator option.
+
+It does, but not for the reason a job description would suggest, and I want to be precise because this is the part a panel will push on:
+
+- **It is not because the control flow demands it.** One branch, no cycles. Plain function calls would run this correctly. Forward-compatibility ("new nodes later instead of a rewrite") is the *weakest* of the arguments and YAGNI is a fair counter — I would not adopt a framework on that reason alone.
+- **It is because the node boundaries become the observability boundaries.** Every node is a span, `run_report.json` is assembled from those spans, and the monitoring work reads that report. With `LANGSMITH_TRACING` set, the identical graph emits the identical spans to a hosted backend with no code change. That is a real mechanism, not a label.
+- **And the pipeline stayed exactly as deterministic as the analysis concluded it should be.** Linear/DAG edges, no cycles, no LLM-directed routing. I deliberately did not adopt LangGraph's agentic machinery to look like the framework is being used properly — that would recreate the orchestrator problem I had just argued against.
+
+**Built and verified, not assumed.** Nine nodes, one conditional edge. What I actually checked:
+
+- End to end on the real batch: 300 rows in, tiers A 28 / B 46 / C 79 / D 147 — **identical to `analysis/score_and_evaluate.py`**. Two independent code paths agreeing is the check that would have caught the threshold bug from Entry 8, so it is now a standing one.
+- The guardrail's own test suite, 9 cases, **9/9**: accepts clean output on covered and uncovered accounts, and rejects a dropped vendor-data caveat, an invented headcount, "this account will convert", leaked ML vocabulary, an over-long rationale, a caveat attached to a covered account, and a malformed payload. `python -m agent.guardrails`.
+- The input gate against four deliberately broken batches: an unseen industry halts (the encoder's `handle_unknown='ignore'` would otherwise silently zero it — a genuinely invisible failure), duplicate account IDs halt, a coverage collapse to 18% halts at −14.8 sigma, and a milder drift to 51.33% **warns and proceeds** at −3.0 sigma.
+
+That last case is the one I would demo. At 51.33% coverage the batch still scores, the warning propagates onto the call sheet, and **Tier A shrinks** rather than staying full — in this specific test batch, from 28 to 21. The exact count depends on which accounts happen to lose coverage, since intent_score is the model's top feature, so I'm not presenting 21 as a fixed constant — but the direction and the mechanism are robust: the frozen thresholds from Entry 8 register a weaker batch instead of manufacturing a full top tier. The design argument from that entry is now observable rather than asserted.
+
+**One deliberate choice about thresholds.** The coverage gate is expressed in standard errors, not fixed percentage points, because the noise in a coverage estimate depends on batch size — a fixed "warn at 5pp" rule would be hair-trigger on 50 accounts and asleep on 5,000. Warn at 3 sigma, halt at 6. On the real batch this reads +0.5 sigma, so normal data correctly reads as normal.
+
+**What the agent refuses to do.** On a halt it writes the diagnosis and produces no call list at all. Handing a rep a subtly wrong list is worse than handing them nothing: nothing prompts a question, whereas a plausible-but-wrong list gets worked and nobody finds out for a quarter. That is the planted failure mode, answered in code rather than in prose.
+
+**Assumption stated rather than hidden:** rep capacity (default 25) is a CLI parameter, not a finding. Headcount and call volume are absent from the provided data.
+
 ---
 
-*Continues below as work proceeds: agent design, agent build, monitoring design.*
+*Continues below as work proceeds: monitoring design, then the written proposal.*

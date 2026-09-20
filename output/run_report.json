@@ -1,0 +1,92 @@
+{
+  "trace": {
+    "run_id": "run-20260920T042203Z",
+    "project": "cordilla-call-list",
+    "span_count": 57,
+    "by_run_type": {
+      "chain": {
+        "count": 7,
+        "errors": 0,
+        "total_ms": 729.98
+      },
+      "llm": {
+        "count": 25,
+        "errors": 0,
+        "total_ms": 0.01
+      },
+      "evaluator": {
+        "count": 25,
+        "errors": 0,
+        "total_ms": 1.53
+      }
+    },
+    "note": "Token counts are mocked. A real LangSmith trace carries usage from the API response."
+  },
+  "input": {
+    "path": "data/accounts_to_score.csv",
+    "rows": 300
+  },
+  "gate": {
+    "rows_in": 300,
+    "findings": [
+      {
+        "severity": "info",
+        "code": "vendor_coverage_normal",
+        "detail": "coverage 61.33% vs training baseline 59.83% (+0.5 sigma, batch n=300)",
+        "coverage": 0.6133,
+        "sigma": 0.53
+      },
+      {
+        "severity": "info",
+        "code": "snapshot_freshness_normal",
+        "detail": "median snapshot age 121 days against 2026-08-01"
+      }
+    ],
+    "halt": false,
+    "counts": {
+      "halt": 0,
+      "warn": 0,
+      "info": 2
+    }
+  },
+  "halted": false,
+  "scoring": {
+    "tier_counts": {
+      "A": 28,
+      "B": 46,
+      "C": 79,
+      "D": 147
+    },
+    "tier_thresholds": {
+      "A": 0.1088,
+      "B": 0.0792,
+      "C": 0.0525
+    },
+    "score_distribution": {
+      "count": 300.0,
+      "mean": 0.0655,
+      "std": 0.0298,
+      "min": 0.0381,
+      "50%": 0.054,
+      "90%": 0.1063,
+      "max": 0.2094
+    },
+    "accounts_without_vendor_data": 116
+  },
+  "llm": {
+    "model": "claude-opus-5",
+    "mocked": true,
+    "briefs": 25,
+    "by_source": {
+      "llm": 25
+    },
+    "guardrail_rejections": 0,
+    "guardrail_failure_codes": {}
+  },
+  "artifacts": {
+    "call_sheet": "output/call_sheet.md",
+    "crm_tasks": "output/crm_tasks.json",
+    "run_report": "output/run_report.json",
+    "scored_accounts": "output/agent_scored_accounts.csv"
+  }
+}

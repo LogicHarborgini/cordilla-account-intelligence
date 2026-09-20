@@ -1,0 +1,15 @@
+# Dependencies for the agent in agent/. Follows the same pattern the scaffold
+# already uses for requirements-notebook.txt: layer extras on top of the pinned
+# core rather than editing requirements.txt, which is provided and fixed.
+#
+#   pip install -r requirements-agent.txt
+#
+# Verified not to disturb the four pinned versions: pandas 2.2.3, numpy 1.26.4,
+# scikit-learn 1.5.2 and matplotlib 3.9.2 are unchanged after installing this.
+-r requirements.txt
+langgraph==1.2.11
+
+# Not installed and not required. The LLM call in agent/mocks.py is mocked, so
+# the anthropic SDK is never imported. Listed here so the real dependency is
+# obvious to a reader deciding what it would take to run this for real:
+#   anthropic>=1.0.0

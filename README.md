@@ -43,6 +43,57 @@ Expected feature columns, in the order the model was trained on: `account_type`,
 - `PROPOSAL.md`, your written design proposal covering all three: impact framing, agent design, monitoring design (see the take-home packet for the required sections).
 - `RESEARCH-LOG.md`, your running log as you work: hypotheses, what you tried, dead ends, and specifically what you asked your AI tool and how you used what came back.
 
+## Running it
+
+Two things to run. Neither needs an API key — the only LLM call is mocked, and every mocked
+integration lives in one file (`agent/mocks.py`) so it is easy to find and judge.
+
+**1. Reproduce the numbers.** Every figure quoted in `PROPOSAL.md` comes from these:
+
+    python analysis/explore_data.py        # what the data says, incl. tests that failed
+    python analysis/score_and_evaluate.py  # is the model worth using, and by how much
+
+**2. Run the agent.** Builds a prioritised call list from `data/accounts_to_score.csv`:
+
+    pip install -r requirements-agent.txt  # adds langgraph on top of the pinned core
+    python -m agent.graph
+
+    python -m agent.graph --capacity 40    # how many accounts one rep can work
+    python -m agent.graph --print-graph    # print the compiled graph as mermaid
+
+Writes to `output/`:
+
+| File | What it is |
+|---|---|
+| `call_sheet.md` | What a rep opens. Ordered, cut to capacity, one short brief per account. |
+| `crm_tasks.json` | Salesforce Task payloads — the action attached to the list. Mocked at the boundary. |
+| `run_report.json` | Input-gate findings, tier counts, score distribution, trace spans, guardrail results. |
+| `agent_scored_accounts.csv` | All 300 accounts with score, tier and vendor-data flag. |
+
+**3. Run the guardrail's own tests.** The checks on the LLM's output are validated in both
+directions — that they accept good output and reject each specific failure mode:
+
+    python -m agent.guardrails
+
+### How the agent is put together
+
+A LangGraph `StateGraph` with linear/DAG edges and exactly one branch:
+
+    validate_input ─┬─(proceed)→ score_accounts → assign_tiers → flag_vendor_gap
+                    │            → select_call_list → generate_rationales
+                    │            → validate_rationales → render_outputs
+                    └─(halt)───→ halt_run
+
+Every decision that reaches a rep — ranking, tiering, flagging, the capacity cut, and whether
+the batch is fit to score at all — is made by deterministic code and is reproducible across
+runs. The LLM sits at a leaf: it writes the justification for a list that is already final,
+and its output is checked before a rep can see it.
+
+`validate_input` will **refuse to produce a call list** rather than emit one it cannot stand
+behind — on an unrecognised industry (which the encoder would otherwise silently zero),
+duplicate account IDs, or a vendor-coverage shift large enough that it cannot be sampling
+noise. That is the anti-silent-failure mechanism, and it is the reason the graph has a branch.
+
 ## Working process
 
 Commit as you actually go, small, real commits over time, not one commit at the end. We read the commit history as part of how you reason and work, not just the final diff.
