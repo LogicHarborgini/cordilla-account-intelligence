@@ -396,6 +396,30 @@ weekly, 390 monthly**. Too slow to be the alarm; that is the finding, not a flaw
 8. Removed the duplicated tier constants from `analysis/` so the two code paths cannot drift
    apart again — the same defect as (4), closed at the root.
 
+## Entry 13 — 2026-09-20 — Closing a gap: who the impact numbers actually describe
+
+Re-read the brief against the deliverables and found one instruction unmet. It asks for the
+full untouched-account population to be reasoned about in the impact framing; that reasoning
+existed in my notes but appeared in no deliverable.
+
+**What I checked** (now reproducible as sections 2b and 2c of `analysis/explore_data.py`):
+the labelled cohort is already engaged — 59.4% have been contacted by sales, 51.4% are MQLs,
+67.2% have visited the site, 18.6% started a trial, and only **5.1% are cold on every
+signal**. The brief puts cold outreach well under 1% while this cohort converts at 6.50%.
+That reconciles the two figures: they describe different populations, and the tier rates
+should not be extrapolated to the untouched majority.
+
+**Tested the brief's own claim rather than repeating it.** It says intent coverage skews to
+larger accounts. Covered accounts average 126.5 employees against 113.2 uncovered — 1.12x,
+direction matches — but Welch's t-test gives **p = 0.2545**. Directionally true, weak in this
+extract, not significant. Reported that way rather than rounded up to "confirmed", since
+repeating a source's claim as verified when the data does not support it is exactly the habit
+this log keeps catching.
+
+**Changed in `PROPOSAL.md`:** added a "Who these numbers describe" paragraph and one clause on
+the coverage-skew test. Both were paid for by trimming wording elsewhere — the file was at
+1,200 words before and is at 1,200 after, with no number or claim removed.
+
 ---
 
 *End of log.*

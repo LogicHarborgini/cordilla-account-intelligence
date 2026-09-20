@@ -95,6 +95,48 @@ def section_baseline(train):
     rate_line("ALL TRAINING ROWS", train)
 
 
+def section_population(train):
+    rule("2b. IS THE LABELLED COHORT THE POPULATION THIS WOULD BE AIMED AT?")
+    print("The brief describes tens of thousands of mostly UNTOUCHED accounts, and")
+    print("says cold outreach converts well under 1%. This cohort converts at 6.50%.")
+    print("That gap is worth explaining rather than ignoring, because every tier rate")
+    print("quoted in the proposal inherits whatever population these rows represent.\n")
+
+    for col, label in (("sales_contacts_90d", "already contacted by sales"),
+                       ("mql_count_90d", "already a marketing-qualified lead"),
+                       ("web_touchpoints_90d", "already visited the website")):
+        n = int((train[col] > 0).sum())
+        print(f"  {label:<36} {n / len(train):>6.1%}  ({n}/{len(train)})")
+    n_trial = int((train.trial_started == 1).sum())
+    print(f"  {'already started a trial':<36} {n_trial / len(train):>6.1%}  "
+          f"({n_trial}/{len(train)})")
+
+    cold = ((train.web_touchpoints_90d == 0) & (train.sales_contacts_90d == 0)
+            & (train.mql_count_90d == 0) & (train.trial_started == 0))
+    print(f"\n  {'cold on every signal':<36} {cold.mean():>6.1%}  "
+          f"({int(cold.sum())}/{len(train)})")
+    print("\n  Read: this is an already-engaged slice, not a cold population. The tier")
+    print("  rates are honest for accounts that look like this cohort and should not")
+    print("  be extrapolated to the untouched majority without saying so.")
+
+    rule("2c. TESTING THE BRIEF'S OWN CLAIM: does intent coverage skew larger?")
+    covered = train[train.intent_score.notna()].employee_count
+    uncovered = train[train.intent_score.isna()].employee_count
+    print(f"  with intent data   : n={len(covered):<5} mean {covered.mean():>6.1f}  "
+          f"median {covered.median():>5.0f}")
+    print(f"  without intent data: n={len(uncovered):<5} mean {uncovered.mean():>6.1f}  "
+          f"median {uncovered.median():>5.0f}")
+    t_stat, p_value = stats.ttest_ind(covered, uncovered, equal_var=False)
+    print(f"\n  Welch's t-test (unequal variance): t = {t_stat:.3f}, p = {p_value:.4f}")
+    print(f"  ratio of means: {covered.mean() / uncovered.mean():.2f}x")
+    verdict = ("SUPPORTED at 0.05" if p_value < 0.05
+               else "directionally true but WEAK — not significant at 0.05")
+    print(f"  verdict: {verdict}")
+    print("\n  Reported as measured rather than repeated from the brief. The direction")
+    print("  matches, the magnitude does not survive a significance test in this")
+    print("  extract, and rounding that up to 'confirmed' would be the easy error.")
+
+
 def section_signals(train):
     rule("3. THE TWO CANDIDATE SIGNALS")
     print("Question: which single fact best separates converters from non-converters?\n")
@@ -255,6 +297,7 @@ def main():
     train, score = load()
     section_shape(train, score)
     section_baseline(train)
+    section_population(train)
     section_signals(train)
     section_intent_value(train)
     section_segments(train, score)
