@@ -45,7 +45,16 @@ FEATURES = [
     "web_touchpoints_90d", "sales_contacts_90d",
 ]
 
-# Percentiles of the TRAINING score distribution that define each tier.
+# Tier cutoffs. FROZEN CONSTANTS, not recomputed per run.
+#
+# Derived once from the p90/p75/p50 of the training score distribution and then
+# written down here, rounded to 4dp. Recomputing them at runtime would defeat
+# the point: thresholds that move with their input are not thresholds a batch
+# can fall short of, and the tier counts would stop being a drift signal. In a
+# real deployment these would live in config and change only by deliberate
+# review. print_threshold_provenance() re-derives them so the rounding stays
+# auditable.
+TIER_THRESHOLDS = {"A": 0.1088, "B": 0.0792, "C": 0.0525}
 TIER_PERCENTILES = {"A": 90, "B": 75, "C": 50}
 TIER_LABELS = {
     "A": "A - call first",
@@ -76,12 +85,20 @@ def score(model, pos_idx, df):
     return model.predict_proba(df[FEATURES])[:, pos_idx]
 
 
-def derive_thresholds(train_scores):
-    return {t: float(np.percentile(train_scores, p))
-            for t, p in TIER_PERCENTILES.items()}
+def print_threshold_provenance(train_scores):
+    """Show where the frozen constants came from, and what rounding cost."""
+    print("  frozen constant vs the percentile it was derived from:")
+    for tier, pct in TIER_PERCENTILES.items():
+        exact = float(np.percentile(train_scores, pct))
+        frozen = TIER_THRESHOLDS[tier]
+        print(f"    Tier {tier}: using {frozen:.4f}   "
+              f"(training p{pct} = {exact:.6f}, rounding shift {frozen - exact:+.6f})")
+    print("  Rounding moves a handful of borderline accounts. That is accepted:")
+    print("  a published, stable cutoff is worth more than 6dp of precision.")
 
 
-def assign_tier(scores, thresholds):
+def assign_tier(scores, thresholds=None):
+    thresholds = thresholds or TIER_THRESHOLDS
     return pd.Series(
         np.select(
             [scores >= thresholds["A"], scores >= thresholds["B"], scores >= thresholds["C"]],
@@ -154,15 +171,15 @@ def section_blind_spot(train):
     print("  The agent surfaces this per-account rather than hiding it.")
 
 
-def section_thresholds(thresholds, train, y):
-    rule("5. TIER CUTOFFS, DERIVED FROM THE TRAINING DISTRIBUTION")
-    for tier, thr in thresholds.items():
-        print(f"  Tier {tier}: score >= {thr:.4f}  "
-              f"(training p{TIER_PERCENTILES[tier]})")
-    print(f"  Tier D: everything below {thresholds['C']:.4f}")
+def section_thresholds(train, y):
+    rule("5. TIER CUTOFFS (frozen constants)")
+    for tier, thr in TIER_THRESHOLDS.items():
+        print(f"  Tier {tier}: score >= {thr:.4f}")
+    print(f"  Tier D: everything below {TIER_THRESHOLDS['C']:.4f}\n")
+    print_threshold_provenance(train.p.values)
 
     print("\n  Lift actually observed at these cutoffs in the training data:")
-    tiers = assign_tier(train.p, thresholds)
+    tiers = assign_tier(train.p)
     base = y.mean()
     summary = pd.DataFrame({"tier": tiers, "converted": y}).groupby("tier").agg(
         n=("converted", "size"), converted=("converted", "sum"), rate=("converted", "mean"))
@@ -171,7 +188,7 @@ def section_thresholds(thresholds, train, y):
     print(summary[["n", "converted", "rate_%", "lift"]].to_string())
 
 
-def section_batch(scored, thresholds):
+def section_batch(scored):
     rule("6. THE LIVE BATCH: 300 ACCOUNTS SCORED")
     print(scored.p.describe(percentiles=[.1, .25, .5, .75, .9, .95, .99]).round(4).to_string())
     print(f"\n  The model's ceiling on this batch is {scored.p.max():.4f}. It never")
@@ -224,16 +241,15 @@ def main():
     section_calibration(train)
     section_blind_spot(train)
 
-    thresholds = derive_thresholds(train.p.values)
-    section_thresholds(thresholds, train, y)
+    section_thresholds(train, y)
 
     batch["p"] = score(model, pos_idx, batch)
     batch["has_intent"] = batch.intent_score.notna()
-    batch["tier"] = assign_tier(batch.p, thresholds).values
+    batch["tier"] = assign_tier(batch.p).values
     batch = batch.sort_values("p", ascending=False).reset_index(drop=True)
     batch["rank"] = np.arange(1, len(batch) + 1)
 
-    section_batch(batch, thresholds)
+    section_batch(batch)
 
     # Row-count check: a silent row drop during scoring would be invisible otherwise.
     assert len(batch) == len(pd.read_csv(SCORE_CSV)), "row count changed during scoring"

@@ -151,7 +151,7 @@ rank,account_id,tier,p,has_intent,account_type,industry,employee_count,intent_sc
 150,ACC-01434,C,0.05402246211682925,True,Suspect,Financial Services,700,25.0,0,0,2,0,0,2026-01-15
 151,ACC-00299,C,0.05402246211682925,False,Suspect,Software,617,,0,0,2,0,0,2025-09-06
 152,ACC-01377,C,0.05300676339230777,False,Prospect,Software,800,,0,0,0,3,0,2026-04-08
-153,ACC-01026,D,0.05250022646630769,False,Prospect,Professional Services,6,,0,0,4,5,4,2026-05-28
+153,ACC-01026,C,0.05250022646630769,False,Prospect,Professional Services,6,,0,0,4,5,4,2026-05-28
 154,ACC-00366,D,0.05245428813947127,True,Suspect,Professional Services,31,11.7,0,0,2,5,0,2026-02-13
 155,ACC-01293,D,0.05204090366953759,True,Suspect,Retail,95,22.0,0,0,0,0,2,2025-12-20
 156,ACC-01038,D,0.051480062756581235,True,Prospect,Professional Services,31,19.5,0,0,0,7,1,2025-11-01
