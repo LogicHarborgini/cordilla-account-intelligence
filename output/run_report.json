@@ -1,23 +1,23 @@
 {
   "trace": {
-    "run_id": "run-20260920T071143Z",
+    "run_id": "run-20260920T073519Z",
     "project": "cordilla-call-list",
     "span_count": 57,
     "by_run_type": {
       "chain": {
         "count": 7,
         "errors": 0,
-        "total_ms": 1227.57
+        "total_ms": 1253.99
       },
       "llm": {
         "count": 25,
         "errors": 0,
-        "total_ms": 0.03
+        "total_ms": 0.02
       },
       "evaluator": {
         "count": 25,
         "errors": 0,
-        "total_ms": 2.77
+        "total_ms": 2.41
       }
     },
     "note": "Token counts are mocked. A real LangSmith trace carries usage from the API response."

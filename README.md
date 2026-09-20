@@ -35,18 +35,35 @@ Expected feature columns, in the order the model was trained on: `account_type`,
 
 ## What's here
 
+Provided with the exercise and unmodified — the descriptions below are the scaffold's own:
+
 - `model/model.pkl`, a real, already-trained scikit-learn pipeline. Don't retrain it. You don't need to audit it to research rigor, this exercise isn't scored on that, but it's real data worth actually looking at if it changes your impact framing or monitoring design.
 - `data/training_data.csv`, the labeled historical data the model above was actually trained on. Look at it enough to ground your impact-framing numbers and your monitoring design, that's the bar, not a full audit.
 - `data/accounts_to_score.csv`, an unlabeled batch you'll run the model against as part of the agent build. Don't modify or regenerate either CSV; everyone works from the same files.
-- `agent/`, your agent: load the model, score `accounts_to_score.csv`, and build something real that does something with the output. Vague on purpose, see the take-home packet's hints on what we'd minimally want to see (tools/actions, structure, framework choice and why, deployment). Mock any LLM/API calls, no key is provided, see the packet.
-- `monitoring/`, at least one real, concrete monitoring check (a health check, a data-quality assertion, a drift signal, an alert condition). Can live here or be folded into `agent/`, your call. See the packet, this is scored as its own dimension, not a bullet point.
-- `PROPOSAL.md`, your written design proposal covering all three: impact framing, agent design, monitoring design (see the take-home packet for the required sections).
-- `RESEARCH-LOG.md`, your running log as you work: hypotheses, what you tried, dead ends, and specifically what you asked your AI tool and how you used what came back.
+Everything below this line is mine:
+
+- `agent/` — the call-list agent. A LangGraph `StateGraph`: scores the batch, tiers it, flags
+  the accounts the model over-scores, cuts to rep capacity, writes a per-account rationale
+  through a swappable LLM backend, checks that rationale before a rep can see it, and renders
+  the artifacts. `agent/mocks.py` holds both mocked integrations and nothing else does.
+- `monitoring/` — two layers above the agent's own input gate: `drift_monitor.py` compares
+  runs to each other with CUSUM, `outcome_monitor.py` tests whether the top tier actually
+  converted and shows why that check is too slow to be the alarm.
+- `analysis/` — the scripts every figure in `PROPOSAL.md` comes from. Re-run them and the
+  numbers reproduce.
+- `PROPOSAL.md` — impact framing, agent design, monitoring design.
+- `RESEARCH-LOG.md` — written as the work happened. The last entry consolidates every number,
+  assumption and gap; Appendix A quotes the prompts that changed a decision.
+- `CLAUDE.md` — the working context the build ran against: constraints, roadmap, and the
+  conventions applied throughout.
+- `output/` — a default (mocked) run. `output_groq/` — the same run against a real model via
+  Groq, kept as evidence the live path works and as the comparison point for the guardrail.
 
 ## Running it
 
-Two things to run. Neither needs an API key — the only LLM call is mocked, and every mocked
-integration lives in one file (`agent/mocks.py`) so it is easy to find and judge.
+Nothing here needs an API key. The rationale step defaults to a deterministic mock, and both
+mocked integrations live in `agent/mocks.py` so they are easy to find and judge. Step 2b is
+optional and is the only part that talks to a network.
 
 **1. Reproduce the numbers.** Every figure quoted in `PROPOSAL.md` comes from these:
 
